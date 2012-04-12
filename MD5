@@ -1,0 +1,11 @@
+acd6bc2420f5345d013ff164c79640e1 *DESCRIPTION
+fbfa56de734a1b432c0198a020828834 *NAMESPACE
+7ee4e28c1fb9375ed93c0e261589f7f5 *R/binmod.R
+c52a683368c544588f8e7e3a694836a7 *data/beef.rda
+4ef562d82e89c3552bef59cd35e3dc53 *doc/PAS.pdf
+3d27f6cfa065a97c85cc38e84243e588 *man/PAS-package.Rd
+7e451ae8e0a0ae051c96a3c549c3ab87 *man/beef.Rd
+1e87de7fada8c9b8e9c3aaa2454e8bb9 *man/binmod.Rd
+e72f3c989da8416176f1a189a513a4f9 *man/plot.binmod.Rd
+0ec23bdefc14e0df0bbdd4fba134f9a4 *man/predict.binmod.Rd
+cc76e8565d66129183e895552b52d42d *man/print.binmod.Rd
