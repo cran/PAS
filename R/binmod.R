@@ -2,7 +2,7 @@
 getgrpinfo<-function (map) {
   chr=map[,1]
   pos=map[,2]
-  chrid=unique(sort(chr));
+  chrid=unique((chr));
   nchr=NROW(chrid);
   grpinfo=data.frame(chr=0, start=0, end=0,length=0, nmark=0, aver=0)[-1,]
   for (k in 1:nchr) {
@@ -44,32 +44,6 @@ getxbin<- function(x, beta0, binmap) {
   return (xbin)
 }
 
-
-# getbinmap <- function(map, grpinfo, binsize) {
-# #   grpinfo=mapinfo
-#   if (binsize<=0) {
-#     mapi=data.frame(chr=map[,1], pos=map[,2]);
-#     mapi$pos_id=1:NROW(map)
-#     mapi$start_id=mapi$pos_id;
-#     mapi$end_id=mapi$pos_id;
-#   } else {
-#     mapi=data.frame(chr=0, pos=0, pos_id=0, start_id=0, end_id=0)[-1,]
-#     
-#     maplist=data.frame(chr=map[,1], pos=map[,2])
-#     for (ichr in 1:nrow(grpinfo)) {
-#       for (pos in seq(grpinfo$start[ichr]-1e-5, grpinfo$end[ichr], binsize+2e-5)) {
-#         idx=which((pos<maplist$pos)&(maplist$pos<=pos+binsize)&(maplist$chr==grpinfo$chr[ichr]), arr.ind=T)
-#         if (NROW(idx)>1) {
-#           tmpmap=data.frame(chr=grpinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx));
-#           mapi=rbind(mapi, tmpmap);
-#         }
-#       }
-#     }
-#   }
-#   rownames(mapi)<-NULL
-#   return (mapi)
-# }
-
 getbinmap <- function(map, mapinfo, binsize) {
   #   mapinfo=mapinfo
   if (binsize<=0) {
@@ -83,11 +57,10 @@ getbinmap <- function(map, mapinfo, binsize) {
     maplist=data.frame(chr=map[,1], pos=map[,2])
     ichr=1
     for (ichr in 1:nrow(mapinfo)) {
-#       for (pos in seq(mapinfo$start[ichr]-1e-5, mapinfo$end[ichr], binsize+2e-5)) {
       for (pos in seq(mapinfo$start[ichr]-1e-5, mapinfo$end[ichr], binsize+1e-5)) {
         idx=which((pos<maplist$pos)&(maplist$pos<=pos+binsize+1e-5)&(maplist$chr==mapinfo$chr[ichr]), arr.ind=T)
         if (NROW(idx)>0) {
-          tmpmap=data.frame(chr=mapinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx));
+          tmpmap=data.frame(chr=mapinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx), nmark=NROW(idx));
           mapi=rbind(mapi, tmpmap);
         }
       }
@@ -166,6 +139,7 @@ cv_nfold<-function(x, y, nfold=10, ...) {
   return (result)
 }
 
+
 glmcvbeta<-function(x, y, ...) {
   library(glmnet)
   cvfit=cv.glmnet(x=x, y=y, ...);
@@ -184,9 +158,8 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
     Binmap=getbinmap(map, mapinfo, binsize)
     newx=getxbin(x, beta0, Binmap);
     
-#     out=glmcvbeta(newx, y, foldid=foldid)
-#     str(out)
     out=glmcvbeta(newx, y, ...);
+    
     mse=out$cv$mse;
     mselist=rbind(mselist, data.frame(binsize=binsize, mse=out$cv$mse, mse_std=out$cv$msesd, nbin=nrow(Binmap)))
     
@@ -204,8 +177,6 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
   Binmap=getbinmap(map, mapinfo, Optbinsize)
   newx=getxbin(x, beta0, Binmap);
 
-  out$lambda.1se
-  
   optimal=cv_nfold(newx, y, lambda=OptLambda,  ...)
   optimal$xbin=newx;
   optimal$map=Binmap
@@ -215,6 +186,7 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
   return (list(grid=list(mselist=mselist, optbinsize=Optbinsize, optid=which(Optbinsize==mselist$binsize, arr.ind=T)), optimal=optimal))
 }
 
+# bin.res=est
 #match SNP and Bin map
 matchmap.snp.bin<-function(bin.res) {
   tmp=bin.res$snp$map
@@ -222,6 +194,11 @@ matchmap.snp.bin<-function(bin.res) {
   tmp$snp.weight=bin.res$snp$effect$beta
   nbin=NROW(bin.res$optimal$map)
   nsnp.bin=bin.res$optimal$map$end_id-c(0, bin.res$optimal$map$end_id[-nbin])
+  
+
+# a potential BUGs?
+ nsnp.bin[which(!((nsnp.bin>=0)&(nsnp.bin<=nbin)))]=1;
+
   tmp$bin.id=rep(1:nbin, nsnp.bin)
   tmp$bin.effect=rep(bin.res$optimal$effect$beta, nsnp.bin)
   absv={0}[0]
@@ -255,19 +232,20 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, foldi
   mapinfo=getgrpinfo(map)
   
   if (min(binsizelist)<0) {
-    list=max(mapinfo$length)/2^(0:10)
+    list=max(mapinfo$length)/2^(1:10)
     binsizelist=c(list[which(min(mapinfo$min.interval)*1.5<(max(mapinfo$length)/2^(0:10)), arr.ind=T)], 0)
   }
   
   binsizelist=unique(sort(binsizelist, decreasing=T))
   
 #   foldid=rep(1:10, ceiling(NROW(x)/10))[sample(1:NROW(x))]
-  if (is.na(foldid))  foldid=get_foldid(10, NROW(x))
+  if (is.na(foldid)[1])  foldid=get_foldid(10, NROW(x))
   if (NROW(foldid)!=NROW(x)) foldid=get_foldid(10, NROW(x))
-  
 
   est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=full.search, foldid=foldid, ...)
-
+#   est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=F, foldid=foldid)
+  
+  
   est$snp=list(
     map=map,
     effect=UVA
