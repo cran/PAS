@@ -2,13 +2,13 @@
 \alias{PAS.binmod}
 \alias{binmod}
 \title{
-binmode
+binmod
 }
 \description{
 This is the main function for bin model analysis.
 }
 \usage{
-binmod(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, ...)
+binmod(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, foldid=NA, ...)
 }
 
 \arguments{
@@ -21,6 +21,9 @@ binmod(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, ...)
 \item{binsizelist}{A list of binsizes to be considered in the analysis. A default list will be generated if the option was ignored or an invalid list has been specified.}
 \item{full.search}{
   A logic indicator selecting search strategies. If FALSE was assigned, the binmod will complete the running as soon as the optimal binsize was found. Otherwise, analysis will be conducted for all binsizes on the list. 
+}
+\item{foldid}{
+  An optional vector of values between 1 and nfold identifying what fold each observation is in. If not supplied, a random vector is generated under nfold=10.
 }
   \item{\dots}{
 Other parameters need to be passed to glmnet/r and glm/r. 

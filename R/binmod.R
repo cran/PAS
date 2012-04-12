@@ -17,7 +17,7 @@ getgrpinfo<-function (map) {
 weightedx <- function (x, beta, idxcol){
   res=rep(0, NROW(x));
   if (NROW(idxcol)>0) {
-    if (max(abs(beta[idxcol]))>0) {
+    if (max(abs(na.exclude(beta[idxcol])))>0) {
       tmp=beta[idxcol];
       tmp=tmp/(sum(abs(tmp)));    
       
@@ -44,8 +44,34 @@ getxbin<- function(x, beta0, binmap) {
   return (xbin)
 }
 
-getbinmap <- function(map, grpinfo, binsize) {
-  
+
+# getbinmap <- function(map, grpinfo, binsize) {
+# #   grpinfo=mapinfo
+#   if (binsize<=0) {
+#     mapi=data.frame(chr=map[,1], pos=map[,2]);
+#     mapi$pos_id=1:NROW(map)
+#     mapi$start_id=mapi$pos_id;
+#     mapi$end_id=mapi$pos_id;
+#   } else {
+#     mapi=data.frame(chr=0, pos=0, pos_id=0, start_id=0, end_id=0)[-1,]
+#     
+#     maplist=data.frame(chr=map[,1], pos=map[,2])
+#     for (ichr in 1:nrow(grpinfo)) {
+#       for (pos in seq(grpinfo$start[ichr]-1e-5, grpinfo$end[ichr], binsize+2e-5)) {
+#         idx=which((pos<maplist$pos)&(maplist$pos<=pos+binsize)&(maplist$chr==grpinfo$chr[ichr]), arr.ind=T)
+#         if (NROW(idx)>1) {
+#           tmpmap=data.frame(chr=grpinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx));
+#           mapi=rbind(mapi, tmpmap);
+#         }
+#       }
+#     }
+#   }
+#   rownames(mapi)<-NULL
+#   return (mapi)
+# }
+
+getbinmap <- function(map, mapinfo, binsize) {
+  #   mapinfo=mapinfo
   if (binsize<=0) {
     mapi=data.frame(chr=map[,1], pos=map[,2]);
     mapi$pos_id=1:NROW(map)
@@ -55,11 +81,13 @@ getbinmap <- function(map, grpinfo, binsize) {
     mapi=data.frame(chr=0, pos=0, pos_id=0, start_id=0, end_id=0)[-1,]
     
     maplist=data.frame(chr=map[,1], pos=map[,2])
-    for (ichr in 1:nrow(grpinfo)) {
-      for (pos in seq(grpinfo$start[ichr]-1e-5, grpinfo$end[ichr], binsize+2e-5)) {
-        idx=which((pos<maplist$pos)&(maplist$pos<=pos+binsize)&(maplist$chr==grpinfo$chr[ichr]), arr.ind=T)
+    ichr=1
+    for (ichr in 1:nrow(mapinfo)) {
+#       for (pos in seq(mapinfo$start[ichr]-1e-5, mapinfo$end[ichr], binsize+2e-5)) {
+      for (pos in seq(mapinfo$start[ichr]-1e-5, mapinfo$end[ichr], binsize+1e-5)) {
+        idx=which((pos<maplist$pos)&(maplist$pos<=pos+binsize+1e-5)&(maplist$chr==mapinfo$chr[ichr]), arr.ind=T)
         if (NROW(idx)>0) {
-          tmpmap=data.frame(chr=grpinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx));
+          tmpmap=data.frame(chr=mapinfo$chr[ichr], pos=mean(maplist$pos[idx]), pos_id=mean(idx), start_id=min(idx) ,end_id=max(idx));
           mapi=rbind(mapi, tmpmap);
         }
       }
@@ -68,6 +96,7 @@ getbinmap <- function(map, grpinfo, binsize) {
   rownames(mapi)<-NULL
   return (mapi)
 }
+
 
 singlemarkanalysis<-function (x, y, ...) {
   nsnp=NCOL(x);
@@ -94,16 +123,27 @@ singlemarkanalysis<-function (x, y, ...) {
   return (result);
 }
 
+get_foldid<-function(nfold, nind) {
+  rep(1:nfold, ceiling(nind/nfold))[sample(1:nind)]
+}
+
 cv_nfold<-function(x, y, nfold=10, ...) {
   x=as.matrix(x)
   y=as.matrix(y)
   nind=nrow(x);
   y_predic_cv=as.matrix(rep(0, nind))
-  Grp_info=data.frame(id=1:nind, grp=(rep(1:nfold, round(nind/nfold+1))[1:nind])[order(rnorm(nind))]);
+#   Grp_info=data.frame(id=1:nind, grp=(rep(1:nfold, round(nind/nfold+1))[1:nind])[order(rnorm(nind))]);
+  Grp_info=data.frame(id=1:nind, grp=list(...)$foldid)
   for (k in 1:nfold) {
     idx=which(Grp_info$grp==k, arr.ind=T);
     idx_=which(Grp_info$grp!=k, arr.ind=T);
-    cvfit=cv.glmnet(as.matrix(x[idx_,]), as.matrix(y[idx_,]), ...)
+#     cvfit=cv.glmnet(as.matrix(x[idx_,]), as.matrix(y[idx_,]), ...)
+    dots <- list(...)
+    dots$foldid=get_foldid(10, NROW(idx_))
+    dots$x=as.matrix(x[idx_,])
+    dots$y=as.matrix(y[idx_,])
+    cvfit=do.call("cv.glmnet", dots)
+#     cvfit=cv.glmnet(x=as.matrix(x[idx_,]), y=as.matrix(y[idx_,]), dots)
     y_predic_cv[idx]=predict(cvfit,newx=x[idx,])    
   }
   
@@ -120,8 +160,8 @@ cv_nfold<-function(x, y, nfold=10, ...) {
                       yp_cv=y_predic_cv
                     ),
               effect=snpeffect,
-              Xbin=x
-              ,cvfit=cvfit
+              xbin=x,
+              cvfit=cvfit
               );
   return (result)
 }
@@ -130,7 +170,7 @@ glmcvbeta<-function(x, y, ...) {
   library(glmnet)
   cvfit=cv.glmnet(x=x, y=y, ...);
   idx=which(cvfit$lambda.min== cvfit$lambda, arr.ind=T)
-  cv=data.frame(nind=nrow(x), mse=cvfit$cvm[idx], msesd=cvfit$cvsd[idx], lambda=cvfit$lambda.min);
+  cv=data.frame(nind=nrow(x), mse=cvfit$cvm[idx], msesd=cvfit$cvsd[idx], lambda=cvfit$lambda.1se, lambda.1se=cvfit$lambda.1se, lambda.min=cvfit$lambda.min);
   return (list(cv=cv, fit=cvfit))
 }
 
@@ -143,6 +183,9 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
   for (binsize in binsizelist) {
     Binmap=getbinmap(map, mapinfo, binsize)
     newx=getxbin(x, beta0, Binmap);
+    
+#     out=glmcvbeta(newx, y, foldid=foldid)
+#     str(out)
     out=glmcvbeta(newx, y, ...);
     mse=out$cv$mse;
     mselist=rbind(mselist, data.frame(binsize=binsize, mse=out$cv$mse, mse_std=out$cv$msesd, nbin=nrow(Binmap)))
@@ -150,6 +193,7 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
     if (mse<min_mse) {
       min_mse=mse;
       Optbinsize=binsize;
+      OptLambda=c(out$cv$lambda.1se, out$cv$lambda.min)
       mse_inc=0;
     } else {
       mse_inc=mse_inc+1;
@@ -159,7 +203,10 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
 
   Binmap=getbinmap(map, mapinfo, Optbinsize)
   newx=getxbin(x, beta0, Binmap);
-  optimal=cv_nfold(newx, y, nfold=10, ...)
+
+  out$lambda.1se
+  
+  optimal=cv_nfold(newx, y, lambda=OptLambda,  ...)
   optimal$xbin=newx;
   optimal$map=Binmap
   optimal$binsize=Optbinsize
@@ -168,9 +215,29 @@ getoptbinsize<-function(x, y, beta0, map, mapinfo, binsizelist, full.search, ...
   return (list(grid=list(mselist=mselist, optbinsize=Optbinsize, optid=which(Optbinsize==mselist$binsize, arr.ind=T)), optimal=optimal))
 }
 
+#match SNP and Bin map
+matchmap.snp.bin<-function(bin.res) {
+  tmp=bin.res$snp$map
+  tmp$snp.effect=bin.res$snp$effect$beta
+  tmp$snp.weight=bin.res$snp$effect$beta
+  nbin=NROW(bin.res$optimal$map)
+  nsnp.bin=bin.res$optimal$map$end_id-c(0, bin.res$optimal$map$end_id[-nbin])
+  tmp$bin.id=rep(1:nbin, nsnp.bin)
+  tmp$bin.effect=rep(bin.res$optimal$effect$beta, nsnp.bin)
+  absv={0}[0]
+  for (k in 1:nbin) {
+    idx=which(tmp$bin.id==k, arr.ind=T)
+    if (NROW(idx)>0) absv=c(absv, sum(abs(tmp$snp.effect[idx])))
+  }
+  tmp$snp.weight=tmp$snp.effect/rep(absv, nsnp.bin)
+  
+  tmp
+}
+
+
 #binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE,...) UseMethod("binmod.default")
 #binmod.default<-function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, ...) {
-binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE,...){
+binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, foldid=NA, ...){
   if (NROW(x)!=NROW(y)) stop ("The rows for x and y are individuals. Inconsistent numbers of individuals were detected in the two matrix.");
   if (NCOL(x)!=NROW(map)) stop ("The number of columns in x and and the number rows in map are the number of markers. Inconsistent numbers of markers were detected in the two matrix.");
   if (sum(c("chr", "pos") %in% colnames(map))<2) stop ("'chr' and 'pos' is not find in the map (data.frame).");
@@ -182,6 +249,9 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE,...){
   
   if (NCOL(beta0)>1) beta0=beta0[,1]
   if (NCOL(x)==NROW(beta0)) UVA=data.frame(beta=beta0) else UVA=singlemarkanalysis(x, y, ...)
+  
+  UVA$beta[which(!is.finite(UVA$beta))]=0
+  
   mapinfo=getgrpinfo(map)
   
   if (min(binsizelist)<0) {
@@ -191,8 +261,13 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE,...){
   
   binsizelist=unique(sort(binsizelist, decreasing=T))
   
-  est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=full.search, ...)
+#   foldid=rep(1:10, ceiling(NROW(x)/10))[sample(1:NROW(x))]
+  if (is.na(foldid))  foldid=get_foldid(10, NROW(x))
+  if (NROW(foldid)!=NROW(x)) foldid=get_foldid(10, NROW(x))
   
+
+  est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=full.search, foldid=foldid, ...)
+
   est$snp=list(
     map=map,
     effect=UVA
@@ -200,8 +275,10 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE,...){
   est$snp$map$pos_id=1:NROW(map)
   est$snp$mapinfo=mapinfo
   est$cvfit=est$optimal$cvfit
+  est$cvfit$foldid=foldid
   est$optimal$cvfit<-NULL
   class(est) <- "binmod"
+  est$optimal$map.binsnp=matchmap.snp.bin(est)
   est
 }
 
