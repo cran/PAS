@@ -120,7 +120,7 @@ cv_nfold<-function(x, y, nfold=10, ...) {
     y_predic_cv[idx]=predict(cvfit,newx=x[idx,])    
   }
   
-  cvfit=cv.glmnet(x, y, ...)
+  cvfit=glmnet::cv.glmnet(x, y, ...)
   snpeffect=data.frame(beta=coef(cvfit)[-1])
   snpeffect$SSx=colSums(x^2)
   snpeffect$Se=var(y-predict(cvfit, newx=x))[1]
@@ -141,8 +141,8 @@ cv_nfold<-function(x, y, nfold=10, ...) {
 
 
 glmcvbeta<-function(x, y, ...) {
-  library(glmnet)
-  cvfit=cv.glmnet(x=x, y=y, ...);
+  # library(glmnet)
+  cvfit=glmnet::cv.glmnet(x=x, y=y, ...);
   idx=which(cvfit$lambda.min== cvfit$lambda, arr.ind=T)
   cv=data.frame(nind=nrow(x), mse=cvfit$cvm[idx], msesd=cvfit$cvsd[idx], lambda=cvfit$lambda.1se, lambda.1se=cvfit$lambda.1se, lambda.min=cvfit$lambda.min);
   return (list(cv=cv, fit=cvfit))
@@ -219,7 +219,7 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, foldi
   if (NCOL(x)!=NROW(map)) stop ("The number of columns in x and and the number rows in map are the number of markers. Inconsistent numbers of markers were detected in the two matrix.");
   if (sum(c("chr", "pos") %in% colnames(map))<2) stop ("'chr' and 'pos' is not find in the map (data.frame).");
   
-  library(glmnet)
+  # library(glmnet)
   x=as.matrix(x);
   y=as.matrix(y);
   map=data.frame(chr=map$chr, pos=map$pos)
@@ -244,7 +244,6 @@ binmod <- function(x, y, map, beta0=NA, binsizelist=-1, full.search=FALSE, foldi
 
   est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=full.search, foldid=foldid, ...)
 #   est=getoptbinsize(x=x, y=y, beta0=UVA$beta, map=map, mapinfo=mapinfo, binsizelist=binsizelist, full.search=F, foldid=foldid)
-  
   
   est$snp=list(
     map=map,

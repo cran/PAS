@@ -105,6 +105,6 @@ str(binmod.result)
 predict(binmod.result)
 #predict the phenotypic values for new individuals
 x1=x[sample(1:NROW(x) , 20), ]
-bin.pred.x1=predict ( binmod.result, newx=x1)
+bin.pred.x1=predict(binmod.result, newx=x1)
 str(bin.pred.x1)
 }
